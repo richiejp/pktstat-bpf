@@ -34,6 +34,7 @@ import (
 const (
 	defaultIface                          = "eth0"
 	defaultTimeout                        = 1 * time.Hour
+  defaultDisplayInterval                = 0
 	defaultXDPMode                        = "auto"
 	XDPAttachModeNone link.XDPAttachFlags = 0
 )
@@ -42,6 +43,7 @@ var (
 	ifname, xdpMode                   *string
 	jsonOutput, version, help, useXDP *bool
 	timeout                           *time.Duration
+  displayInterval                   *time.Duration
 	xdpAttachFlags                    link.XDPAttachFlags
 )
 
@@ -58,6 +60,7 @@ func parseFags() {
 	xdpMode = fs.StringLong("xdp_mode", defaultXDPMode, "XDP attach mode (auto, generic, native or offload; native and offload require NIC driver support)")
 
 	timeout = fs.Duration('t', "timeout", defaultTimeout, "timeout for packet capture")
+  displayInterval = fs.Duration('u', "interval", defaultDisplayInterval, "interval between displaying output")
 
 	var err error
 

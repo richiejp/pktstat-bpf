@@ -168,6 +168,30 @@ func main() {
 		}()
 	}
 
+  if *displayInterval > 0 {
+    go func() {
+      for {
+        select {
+        case <-c1.Done():
+          return
+        default:
+          time.Sleep(*displayInterval)
+
+          m, err := processMap(objs.PktCount, startTime)
+          if err != nil {
+            log.Fatalf("Error reading eBPF map: %v", err)
+          }
+
+          if *jsonOutput {
+            outputJSON(m)
+          } else {
+            outputPlain(m)
+          }
+        }
+      }
+    }()
+  }
+
 	<-c1.Done()
 
 	m, err := processMap(objs.PktCount, startTime)

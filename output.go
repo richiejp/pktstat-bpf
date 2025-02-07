@@ -71,6 +71,10 @@ func loadSockets() ([]netstat.SockTabEntry, error) {
 func findSocketProc(socks []netstat.SockTabEntry, stat statEntry) string {
 
   for _, row := range socks {
+    if row.Process == nil {
+      continue
+    }
+
     localAddr := netstatAddrToNetip(row.LocalEndpoint)
     localPort := row.LocalEndpoint.Port
     remoteAddr := netstatAddrToNetip(row.RemoteEndpoint)
@@ -114,6 +118,9 @@ func processMap(m *ebpf.Map, start time.Time) ([]statEntry, error) {
 
 	// build statEntry slice converting data where needed
 	for iter.Next(&key, &val) {
+    if err := m.LookupAndDelete(&key, &val); err != nil {
+      return nil, err
+    }
     stat := statEntry{
 			SrcIP:   bytesToAddr(key.Srcip.In6U.U6Addr8),
 			DstIP:   bytesToAddr(key.Dstip.In6U.U6Addr8),
@@ -126,6 +133,7 @@ func processMap(m *ebpf.Map, start time.Time) ([]statEntry, error) {
 		}
     stat.Process = findSocketProc(socks, stat)
 		stats = append(stats, stat)
+
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
