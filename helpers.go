@@ -25,6 +25,8 @@ import (
 	"net"
 	"net/netip"
 	"strings"
+
+  "github.com/nberlee/go-netstat/netstat"
 )
 
 var protoNumbers = map[uint8]string{
@@ -104,6 +106,14 @@ func protoToString(p uint8) string {
 // It takes an addr parameter of type [16]byte and returns a netip.Addr.
 func bytesToAddr(addr [16]byte) netip.Addr {
 	return netip.AddrFrom16(addr).Unmap()
+}
+
+func netstatAddrToNetip(addr *netstat.SockEndpoint) netip.Addr {
+  if ret, ok := netip.AddrFromSlice(addr.IP); ok {
+    return ret.Unmap()
+  }
+
+  panic("addr.IP not 4 or 16 bytes")
 }
 
 // findFirstEtherIface returns the name of the first non-loopback, up Ethernet interface.

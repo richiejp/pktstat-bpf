@@ -22,6 +22,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/goccy/go-json"
+	"github.com/nberlee/go-netstat/netstat"
 )
 
 const (
@@ -38,6 +40,57 @@ const (
 	Gbps         = 1000 * Mbps
 	Tbps         = 1000 * Gbps
 )
+
+func loadSockets() ([]netstat.SockTabEntry, error) {
+    features := netstat.EnableFeatures{
+        TCP:           true,
+        TCP6:          true,
+        UDP:           true,
+        UDP6:          true,
+        UDPLite:       true,
+        UDPLite6:      true,
+        Raw:           false,
+        Raw6:          false,
+        PID:           true,
+        NoHostNetwork: false,
+        AllNetNs:      true,
+        NetNsName:     []string{},
+        NetNsPids:     []uint32{},
+    }
+
+    fn := netstat.NoopFilter
+
+    netstatResp, err := netstat.Netstat(context.TODO(), features, fn)
+    if err != nil {
+        panic(err)
+    }
+
+  return netstatResp, err
+}
+
+func findSocketProc(socks []netstat.SockTabEntry, stat statEntry) string {
+
+  for _, row := range socks {
+    localAddr := netstatAddrToNetip(row.LocalEndpoint)
+    localPort := row.LocalEndpoint.Port
+    remoteAddr := netstatAddrToNetip(row.RemoteEndpoint)
+    remotePort := row.RemoteEndpoint.Port
+
+    if (localAddr == stat.SrcIP &&
+       remoteAddr == stat.DstIP &&
+       localPort == stat.SrcPort &&
+       remotePort == stat.DstPort) ||
+       (localAddr == stat.DstIP &&
+       remoteAddr == stat.SrcIP &&
+       localPort == stat.DstPort &&
+       remotePort == stat.SrcPort) {
+
+      return row.Process.Name
+    }
+  }
+
+  return "<unknown>"
+}
 
 // processMap generates statEntry objects from an ebpf.Map using the provided start time.
 //
@@ -53,10 +106,15 @@ func processMap(m *ebpf.Map, start time.Time) ([]statEntry, error) {
 	dur := time.Since(start).Seconds()
 	stats := make([]statEntry, 0, m.MaxEntries())
 	iter := m.Iterate()
+  socks, err := loadSockets()
+
+  if err != nil {
+    return nil, err
+  }
 
 	// build statEntry slice converting data where needed
 	for iter.Next(&key, &val) {
-		stats = append(stats, statEntry{
+    stat := statEntry{
 			SrcIP:   bytesToAddr(key.Srcip.In6U.U6Addr8),
 			DstIP:   bytesToAddr(key.Dstip.In6U.U6Addr8),
 			Proto:   protoToString(key.Proto),
@@ -65,7 +123,9 @@ func processMap(m *ebpf.Map, start time.Time) ([]statEntry, error) {
 			Bytes:   val.Bytes,
 			Packets: val.Packets,
 			Bitrate: 8 * float64(val.Bytes) / dur,
-		})
+		}
+    stat.Process = findSocketProc(socks, stat)
+		stats = append(stats, stat)
 	}
 
 	sort.Slice(stats, func(i, j int) bool {
@@ -107,8 +167,8 @@ func outputPlain(m []statEntry) {
 	var sb strings.Builder
 
 	for _, v := range m {
-		sb.WriteString(fmt.Sprintf("bitrate: %v, packets: %d, bytes: %d, proto: %v, src: %v:%v, dst: %v:%v\n",
-			formatBitrate(v.Bitrate), v.Packets, v.Bytes, v.Proto, v.SrcIP, v.SrcPort, v.DstIP, v.DstPort))
+    sb.WriteString(fmt.Sprintf("bitrate: %v, packets: %d, bytes: %d, proto: %v, src: %v:%v, dst: %v:%v, process: %v\n",
+			formatBitrate(v.Bitrate), v.Packets, v.Bytes, v.Proto, v.SrcIP, v.SrcPort, v.DstIP, v.DstPort, v.Process))
 	}
 
 	fmt.Printf("%v", sb.String())

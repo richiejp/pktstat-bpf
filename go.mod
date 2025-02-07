@@ -7,6 +7,7 @@ toolchain go1.23.2
 require (
 	github.com/cilium/ebpf v0.17.1
 	github.com/goccy/go-json v0.10.4
+	github.com/nberlee/go-netstat v0.1.2
 	github.com/peterbourgon/ff/v4 v4.0.0-alpha.4
 )
 

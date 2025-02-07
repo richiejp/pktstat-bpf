@@ -11,4 +11,5 @@ type statEntry struct {
 	Bytes   uint64     `json:"bytes"`
 	Packets uint64     `json:"packets"`
 	Bitrate float64    `json:"bitrate"`
+  Process string     `json:"Pid"`
 }
